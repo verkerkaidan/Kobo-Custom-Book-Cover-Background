@@ -30,3 +30,26 @@ go.work.sum
 # Editor/IDE
 # .idea/
 # .vscode/
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+._*
+.Spotlight-V100
+.Trashes
+
+# Build output
+dist/
+kobo-screensaver
+
+# Preview artifacts
+.preview/
+preview.png
+
+# KoboReader database backups
+KoboReader.sqlite*.backup-*
+
+# Finder "copy" duplicates (e.g. "build copy.sh", "assets copy/")
+* copy
+* copy.*
