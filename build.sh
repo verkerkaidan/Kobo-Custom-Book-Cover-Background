@@ -77,13 +77,33 @@ cp "$SRC/assets/trigger.png" "$OUT/icons/kobo-screensaver.png"
 cat > "$OUT/.adds/kobo-screensaver/start.sh" <<'EOF'
 #!/bin/sh
 DIR="/mnt/onboard/.adds/kobo-screensaver"
+BIN="$DIR/kobo-screensaver"
+
 # One instance only: tapping the icon twice should not spawn a second watcher.
-if [ -f "$DIR/watcher.pid" ] && kill -0 "$(cat "$DIR/watcher.pid")" 2>/dev/null
-then
+#
+# This used to check a saved PID with `kill -0`, which only asks "does ANY
+# process with this number exist?". After a reboot the watcher is gone but
+# its old, low PID gets handed to one of Nickel's own processes, so the check
+# passed and the tile silently did nothing until the next reboot recycled the
+# number again. Look for the actual binary in /proc instead.
+running() {
+    for p in /proc/[0-9]*; do
+        [ "$p" = "/proc/$$" ] && continue
+        # [k] keeps this grep from matching its own command line.
+        if tr '\0' ' ' < "$p/cmdline" 2>/dev/null \
+             | grep -q -- "$DIR/[k]obo-screensaver -config .*-watch"
+        then
+            return 0
+        fi
+    done
+    return 1
+}
+
+if running; then
     exit 0
 fi
-"$DIR/kobo-screensaver" -config "$DIR/config.ini" \
-     -log "$DIR/screensaver.log" -watch &
+rm -f "$DIR/watcher.pid"
+"$BIN" -config "$DIR/config.ini" -log "$DIR/screensaver.log" -watch &
 echo $! > "$DIR/watcher.pid"
 EOF
 chmod +x "$OUT/.adds/kobo-screensaver/start.sh"
