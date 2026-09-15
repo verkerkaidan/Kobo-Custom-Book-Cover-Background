@@ -50,9 +50,15 @@ fi
 # Keep the most recent few and delete the rest — every install leaves one of
 # these, and at 2.7MB each they'd otherwise accumulate in the repo forever.
 KEEP=5
-old_backups=$(ls -1t "$SRC"/KoboReader.sqlite.backup-* 2>/dev/null | tail -n +$((KEEP + 1)))
-if [ -n "$old_backups" ]; then
-    echo "$old_backups" | xargs rm -f
+to_prune=$(ls -1t "$SRC"/KoboReader.sqlite.backup-* 2>/dev/null | tail -n +$((KEEP + 1)))
+if [ -n "$to_prune" ]; then
+    # A read loop, not `xargs rm -f`: xargs splits on any whitespace, not
+    # just newlines, so a repo path with a space in it (a synced Drive
+    # folder, say) would tear one filename into two bogus arguments and
+    # rm would silently delete nothing.
+    printf '%s\n' "$to_prune" | while IFS= read -r f; do
+        rm -f -- "$f"
+    done
     echo "==> pruned to the newest $KEEP database backups"
 fi
 
