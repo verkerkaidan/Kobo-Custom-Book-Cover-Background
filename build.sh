@@ -98,7 +98,7 @@ TAG="kobo-screensaver-supervisor"
 # through to the "$1" exec failing, which busybox's sh then tried to
 # re-interpret as a shell script, dumping raw binary garbage into the log the
 # moment it *did* become writable. Wait for the actual binary to exist and be
-# runnable first; give up silently (nothing to log to) if it never shows up.
+# runnable first, instead.
 i=0
 while [ ! -x "$BIN" ]; do
     i=$((i + 1))
