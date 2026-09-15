@@ -157,7 +157,18 @@ timestamps only have two-second resolution.
   (`/mnt/onboard/.kobo/screensaver/`) has been stable for years, and the folder
   simply overrides whatever cover Nickel would otherwise draw — which also
   means the folder must be non-empty before the behaviour kicks in.
-- **Firmware 4.45.23697 is newer than I can verify.** Confirm the current
+- **Firmware updates silently remove KFMon.** Kobo installs updates over
+  Wi-Fi without asking, and an update rewrites the internal root filesystem
+  where KFMon lives. The library tile survives (it's just a PNG on the USB
+  partition) but tapping it does nothing, and the sleep screen freezes on the
+  last render before the reboot. This is what "it stopped updating and
+  restarting doesn't help" almost always means. Recovery: drop the
+  `.kobo/KoboRoot.tgz` from the KFMon ZIP back onto the device, eject, reboot
+  — KFMon reinstalls itself on boot — then tap the tile. A copy of that
+  file is kept on the device as `.adds/kfmon/KoboRoot.tgz.reinstall` so the
+  recovery is: plug in, copy it to `.kobo/KoboRoot.tgz`, eject, reboot, tap.
+  `install-to-kobo.sh` prints the firmware version so a change is noticed.
+- **Firmware 4.45.23792 is newer than I can verify.** Confirm the current
   KFMon build supports your firmware on MobileRead before installing.
 - **The binary is cross-compiled and emulator-tested, not device-tested.** It
   was verified under `qemu-arm`, producing output pixel-identical to the native
