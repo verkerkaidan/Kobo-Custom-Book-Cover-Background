@@ -408,16 +408,21 @@ surrounds it.
 You never have to measure or configure anything: the program finds the hole by
 looking for the transparent part of your drawing.
 
-There's a working example already installed: `assets/frame.png`, a dark
-art-deco border. Replace it with your own whenever you like, or delete
-`.adds/kobo-screensaver/assets/frame.dat` from the Kobo to go back to a
+There are two generated examples. The one installed is `assets/frame.png`,
+semi-transparent vines laid over the whole cover — it has no hole at all, so
+`config.ini` sets `cover_window = 0,0,1072,1448` to put the cover behind the
+entire panel. The other is `assets/frame-artdeco.png`, a dark art-deco border
+with a hole (use `cover_window = auto` with that one, and `text_offset = 32`
+to clear its inner rules). Replace either with your own whenever you like, or
+delete `.adds/kobo-screensaver/assets/frame.dat` from the Kobo to go back to a
 full-screen cover with no decoration.
 
-To regenerate the example (or tweak its colours and shapes, which are all near
-the top of the file):
+To regenerate either (or tweak colours, alpha and shapes, which are all near
+the top of each file):
 
 ```bash
-go run ./tools/mkframe assets/frame.png
+go run ./tools/mkvines assets/frame.png
+go run ./tools/mkframe assets/frame-artdeco.png
 ```
 
 ### How to draw one

@@ -48,7 +48,7 @@ purchases have the MimeType `application/x-kobo-epub+zip`, so a filter of
 whitelist on `%epub%` instead. That also keeps out the PNG trigger icons KFMon
 relies on, which Nickel indexes as content and which count as *finished books*
 once tapped. The device's own eLabel leaflet is excluded by path.
-| Timestamp | render time |
+| Timestamp | render time (`show_date`) |
 
 Each is switchable in `config.ini`.
 
@@ -81,7 +81,9 @@ recorded, and `show_time_spent` / `show_time_left` are the honest substitutes.
 1. **KFMon** — launches the watcher when you tap its library tile. KFMon has
    no autostart-on-boot for watched actions, so you tap the tile once after
    each reboot (not after each sleep — sleeping doesn't stop it). From the
-   MobileRead thread; extract
+   MobileRead thread. `start.sh` checks `/proc` for a running watcher rather
+   than trusting a saved PID — a PID saved before a reboot gets reused by
+   Nickel, which used to make the tile silently do nothing. Extract
    the ZIP to the USB root (use "Extract to", don't drag files manually — the
    hidden directory structure must be preserved). Prefer the `OCP-KFMon-*.zip`
    one-click variant if it's on the thread; the other one-click packages bundle
