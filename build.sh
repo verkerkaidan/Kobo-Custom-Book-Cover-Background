@@ -76,34 +76,50 @@ cp "$SRC/assets/trigger.png" "$OUT/icons/kobo-screensaver.png"
 # KFMon launches a single command; this wrapper starts watch mode.
 cat > "$OUT/.adds/kobo-screensaver/start.sh" <<'EOF'
 #!/bin/sh
+# Tapping the library tile means "(re)start the watcher".
+#
+# It used to mean "start unless already running", guarded by a saved PID and
+# `kill -0`. That guard passed on the wrong process after a reboot (the low
+# PID is recycled by Nickel), and would equally step aside for a watcher that
+# is alive but wedged. So: stop whatever is there, then launch a fresh one
+# under a tiny supervisor that relaunches it if it ever exits. Everything the
+# script does is written to the log, so a tap that achieves nothing at least
+# says so.
 DIR="/mnt/onboard/.adds/kobo-screensaver"
 BIN="$DIR/kobo-screensaver"
+LOG="$DIR/screensaver.log"
+TAG="kobo-screensaver-supervisor"
 
-# One instance only: tapping the icon twice should not spawn a second watcher.
-#
-# This used to check a saved PID with `kill -0`, which only asks "does ANY
-# process with this number exist?". After a reboot the watcher is gone but
-# its old, low PID gets handed to one of Nickel's own processes, so the check
-# passed and the tile silently did nothing until the next reboot recycled the
-# number again. Look for the actual binary in /proc instead.
-running() {
+say() { echo "$(date '+%Y/%m/%d %H:%M:%S') start.sh: $*" >> "$LOG"; }
+
+# What was running when the tile was tapped, before we touch anything. The
+# one question a silent log can't answer from the outside.
+ps w > "$DIR/ps-at-tap.txt" 2>&1
+
+# The supervisor goes first, or it would respawn the watcher we stop next.
+for pat in "$TAG" "$BIN -config"; do
     for p in /proc/[0-9]*; do
-        [ "$p" = "/proc/$$" ] && continue
-        # [k] keeps this grep from matching its own command line.
-        if tr '\0' ' ' < "$p/cmdline" 2>/dev/null \
-             | grep -q -- "$DIR/[k]obo-screensaver -config .*-watch"
-        then
-            return 0
-        fi
+        pid="${p#/proc/}"
+        [ "$pid" = "$$" ] && continue
+        cmd="$(tr '\0' ' ' < "$p/cmdline" 2>/dev/null)"
+        case "$cmd" in
+            *"$pat"*) kill "$pid" 2>/dev/null && say "stopped pid $pid" ;;
+        esac
     done
-    return 1
-}
-
-if running; then
-    exit 0
-fi
+done
 rm -f "$DIR/watcher.pid"
-"$BIN" -config "$DIR/config.ini" -log "$DIR/screensaver.log" -watch &
+
+say "launching watcher"
+# $0 of the inner shell is the tag, which is how the loop above finds it.
+# stderr goes to the log too: a Go panic prints there, and KFMon's stdout is
+# nowhere anyone looks.
+sh -c '
+    while :; do
+        "$1" -config "$2/config.ini" -log "$2/screensaver.log" -watch
+        echo "$(date "+%Y/%m/%d %H:%M:%S") supervisor: watcher exited ($?), relaunching in 30s" >> "$2/screensaver.log"
+        sleep 30
+    done
+' "$TAG" "$BIN" "$DIR" </dev/null >/dev/null 2>>"$LOG" &
 echo $! > "$DIR/watcher.pid"
 EOF
 chmod +x "$OUT/.adds/kobo-screensaver/start.sh"
