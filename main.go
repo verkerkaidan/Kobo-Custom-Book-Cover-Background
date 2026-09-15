@@ -664,6 +664,11 @@ func composeBackground(cfg Config, bgPath string, w, h int) *image.RGBA {
 
 	full := image.Rect(0, 0, w, h)
 	switch cw := strings.ToLower(strings.TrimSpace(cfg.str("cover_window"))); {
+	case cw == "full":
+		// An overlay with no hole, like the vines: the cover sits behind the
+		// whole panel and shows through wherever the artwork is see-through.
+		// A keyword rather than 0,0,W,H so the config follows the panel size.
+		win = full
 	case cw != "" && cw != "auto":
 		if r, ok := parseWindow(cw, w, h); ok {
 			win = r

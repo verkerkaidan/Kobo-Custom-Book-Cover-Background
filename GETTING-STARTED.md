@@ -410,8 +410,8 @@ looking for the transparent part of your drawing.
 
 There are two generated examples. The one installed is `assets/frame.png`,
 semi-transparent vines laid over the whole cover — it has no hole at all, so
-`config.ini` sets `cover_window = 0,0,1072,1448` to put the cover behind the
-entire panel. The other is `assets/frame-artdeco.png`, a dark art-deco border
+`config.ini` sets `cover_window = full` to put the cover behind the entire
+panel. The other is `assets/frame-artdeco.png`, a dark art-deco border
 with a hole (use `cover_window = auto` with that one, and `text_offset = 32`
 to clear its inner rules). Replace either with your own whenever you like, or
 delete `.adds/kobo-screensaver/assets/frame.dat` from the Kobo to go back to a
@@ -481,8 +481,9 @@ also preview a specific file without installing it:
 In `config.ini`:
 
 - `frame` — path to the artwork. Leave blank for no frame at all.
-- `cover_window` — `auto` finds the hole by itself. Set `x,y,w,h` to place the
-  cover somewhere specific instead.
+- `cover_window` — `auto` finds the hole by itself. `full` puts the cover
+  behind the whole panel, for overlays with no hole. Set `x,y,w,h` to place
+  the cover somewhere specific instead.
 - `cover_fit` — `cover` fills the hole, cropping the cover's edges so there are
   no gaps. `contain` shows the whole cover with `mat_colour` around it.
 - `mat_colour` — what shows behind the cover, and anywhere your artwork is

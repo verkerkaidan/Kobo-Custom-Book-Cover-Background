@@ -2,7 +2,7 @@
 //
 // Unlike mkframe this draws no hole. The whole canvas starts fully
 // transparent and the vines are laid over it with partial alpha, so with
-// cover_window = 0,0,1072,1448 the cover fills the panel and shows through
+// cover_window = full the cover fills the panel and shows through
 // the leaves. A soft dark band along the edges keeps the vines legible over
 // any cover, light or dark.
 //
@@ -85,8 +85,7 @@ func main() {
 	if err := png.Encode(f, img); err != nil {
 		panic(err)
 	}
-	fmt.Printf("wrote %s — semi-transparent overlay, no window (set cover_window = 0,0,%d,%d)\n",
-		out, W, H)
+	fmt.Printf("wrote %s — semi-transparent overlay, no window (set cover_window = full)\n", out)
 }
 
 // --- geometry ----------------------------------------------------------------
@@ -284,13 +283,11 @@ func blend(img *image.RGBA, x, y int, col color.RGBA) {
 		image.Point{}, draw.Over)
 }
 
-// Writes col, keeping whichever alpha is higher, so overlapping stamps of the
-// same stroke stay one flat colour instead of darkening.
+// Writes col outright (Src), so overlapping stamps of the same stroke stay
+// one flat colour instead of darkening, and a stroke always lands on top of
+// whatever is under it — a midrib over a leaf, a stem over the vignette.
 func set(img *image.RGBA, x, y int, col color.RGBA) {
 	if !(image.Point{x, y}).In(img.Bounds()) {
-		return
-	}
-	if img.RGBAAt(x, y).A >= col.A {
 		return
 	}
 	draw.Draw(img, image.Rect(x, y, x+1, y+1), &image.Uniform{col},
