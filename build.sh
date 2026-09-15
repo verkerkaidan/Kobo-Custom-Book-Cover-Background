@@ -90,6 +90,27 @@ BIN="$DIR/kobo-screensaver"
 LOG="$DIR/screensaver.log"
 TAG="kobo-screensaver-supervisor"
 
+# KFMon's own udev rule admits it runs "early at boot... onboard *might* be
+# mounted at that point", and Nickel's boot-time library rescan can retrigger
+# this tile's inotify watch several times before the partition is actually
+# ready. There is nowhere safe to log a failure yet -- the log lives on the
+# same not-yet-mounted partition -- so previously each premature attempt fell
+# through to the "$1" exec failing, which busybox's sh then tried to
+# re-interpret as a shell script, dumping raw binary garbage into the log the
+# moment it *did* become writable. Wait for the actual binary to exist and be
+# runnable first, instead.
+i=0
+while [ ! -x "$BIN" ]; do
+    i=$((i + 1))
+    # ~15s, then give up -- but non-zero, not 0: KFMon shows an on-screen
+    # error for a non-zero exit regardless of notification settings, and a
+    # binary that's still missing after 15s is more likely a genuinely
+    # broken install than a slow mount. A quick race resolves in a couple of
+    # seconds either way, so this only ever fires for the case worth seeing.
+    [ "$i" -ge 15 ] && exit 1
+    sleep 1
+done
+
 say() { echo "$(date '+%Y/%m/%d %H:%M:%S') start.sh: $*" >> "$LOG"; }
 
 # What was running when the tile was tapped, before we touch anything. The
