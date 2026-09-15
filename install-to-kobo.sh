@@ -30,7 +30,10 @@ echo "==> target: $KOBO"
 [ -f "$KOBO/.kobo/version" ] && \
     echo "    firmware $(cut -d, -f3 "$KOBO/.kobo/version")  (changed since KFMon went on? see README)"
 
-if [ ! -f "$DIST/.adds/kobo-screensaver/assets/background.png" ]; then
+# build.sh stages the background as .dat, not .png (see its comment on why) —
+# check for the file that will actually be there, or this warns on every
+# single install regardless of whether a background was ever staged.
+if [ ! -f "$DIST/.adds/kobo-screensaver/assets/background.dat" ]; then
     echo "    WARNING: no background image staged. The sleep screen will be"
     echo "             plain dark grey. Ctrl-C now if that isn't what you want."
     sleep 3
@@ -42,6 +45,15 @@ BACKUP="$SRC/KoboReader.sqlite.backup-$(date +%Y%m%d-%H%M%S)"
 if [ -f "$KOBO/.kobo/KoboReader.sqlite" ]; then
     cp "$KOBO/.kobo/KoboReader.sqlite" "$BACKUP"
     echo "==> database backed up to $(basename "$BACKUP")"
+fi
+
+# Keep the most recent few and delete the rest — every install leaves one of
+# these, and at 2.7MB each they'd otherwise accumulate in the repo forever.
+KEEP=5
+old_backups=$(ls -1t "$SRC"/KoboReader.sqlite.backup-* 2>/dev/null | tail -n +$((KEEP + 1)))
+if [ -n "$old_backups" ]; then
+    echo "$old_backups" | xargs rm -f
+    echo "==> pruned to the newest $KEEP database backups"
 fi
 
 echo "==> copying"
