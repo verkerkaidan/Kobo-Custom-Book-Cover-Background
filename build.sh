@@ -102,7 +102,12 @@ TAG="kobo-screensaver-supervisor"
 i=0
 while [ ! -x "$BIN" ]; do
     i=$((i + 1))
-    [ "$i" -ge 15 ] && exit 0   # ~15s; the tile can just be tapped again
+    # ~15s, then give up -- but non-zero, not 0: KFMon shows an on-screen
+    # error for a non-zero exit regardless of notification settings, and a
+    # binary that's still missing after 15s is more likely a genuinely
+    # broken install than a slow mount. A quick race resolves in a couple of
+    # seconds either way, so this only ever fires for the case worth seeing.
+    [ "$i" -ge 15 ] && exit 1
     sleep 1
 done
 
