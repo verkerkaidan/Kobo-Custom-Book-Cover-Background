@@ -48,7 +48,7 @@ purchases have the MimeType `application/x-kobo-epub+zip`, so a filter of
 whitelist on `%epub%` instead. That also keeps out the PNG trigger icons KFMon
 relies on, which Nickel indexes as content and which count as *finished books*
 once tapped. The device's own eLabel leaflet is excluded by path.
-| Timestamp | render time (`show_date`) |
+| "Last updated" timestamp | render time (`show_date`); the staleness tell if KFMon or the watcher has died |
 
 Each is switchable in `config.ini`.
 
