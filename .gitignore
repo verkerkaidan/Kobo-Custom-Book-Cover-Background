@@ -43,9 +43,13 @@ go.work.sum
 dist/
 kobo-screensaver
 
-# Preview artifacts
+# Preview artifacts. .preview/ is preview.sh's scratch workspace (a copy of
+# the database plus its own generated preview.png). The tracked preview.png
+# at the repo root is the README banner and must NOT be ignored here, or it
+# silently never gets committed -- which is exactly what happened before this
+# line was removed: the banner was a broken image link since the first
+# commit, because the file plain did not exist in the repo.
 .preview/
-preview.png
 
 # KoboReader database backups
 KoboReader.sqlite*.backup-*

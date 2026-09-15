@@ -757,7 +757,13 @@ func render(s Stats, cfg Config, w, h int, bgPath string) (*image.RGBA, error) {
 		lines = append(lines, line{"small", strings.Join(tail, "  ·  ")})
 	}
 	if cfg.bool("show_date") {
-		lines = append(lines, line{"small", time.Now().Format(cfg.str("date_format"))})
+		// Labelled, not a bare clock: the whole point of this line is to answer
+		// "is this stale?" at a glance. An unlabelled timestamp reads as "now",
+		// which is exactly backwards — it is the last time anything changed,
+		// and a KFMon/firmware hiccup can leave it stuck for days (see the
+		// README note on firmware updates removing KFMon). Small text, last
+		// line: present without competing with the numbers that matter.
+		lines = append(lines, line{"small", "Last updated " + time.Now().Format(cfg.str("date_format"))})
 	}
 
 	barH, barGap := 10, 22
