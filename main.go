@@ -997,13 +997,23 @@ func watch(cfg Config, cfgPath string) {
 	lastSig := sigOf(cfg)
 	lastRun := time.Now()
 
+	dbGone := false
 	for {
 		time.Sleep(interval)
 
 		// While the Kobo is plugged into a computer, Nickel unmounts the
-		// partition and the database vanishes. Nothing to do but wait.
+		// partition and the database vanishes. Nothing to do but wait. Say so
+		// once each way: these are the events a silent log needs explaining.
 		if _, err := os.Stat(dbPath); err != nil {
+			if !dbGone {
+				log.Printf("database unreachable (%v) — USB mode? waiting", err)
+				dbGone = true
+			}
 			continue
+		}
+		if dbGone {
+			log.Printf("database back")
+			dbGone = false
 		}
 		sig := sigOf(cfg)
 		if sig == lastSig || time.Since(lastRun) < minRegen {
@@ -1023,6 +1033,24 @@ func watch(cfg Config, cfgPath string) {
 	}
 }
 
+// A log destination that is opened, appended to and closed on every write.
+//
+// Holding the file open for the life of the process is wrong here: when the
+// Kobo goes into USB mode Nickel unmounts the partition, and once it comes
+// back the old descriptor points at a dead filesystem. Every line after
+// that — including whatever explained a later crash — would vanish, leaving
+// a log that simply stops. Writes are rare enough that reopening is free.
+type reopenLog string
+
+func (p reopenLog) Write(b []byte) (int, error) {
+	f, err := os.OpenFile(string(p), os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
+	if err != nil {
+		return 0, err
+	}
+	defer f.Close()
+	return f.Write(b)
+}
+
 func main() {
 	exe, _ := os.Executable()
 	defaultCfg := filepath.Join(filepath.Dir(exe), "config.ini")
@@ -1033,10 +1061,7 @@ func main() {
 	flag.Parse()
 
 	if *logPath != "" {
-		if f, err := os.OpenFile(*logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644); err == nil {
-			defer f.Close()
-			log.SetOutput(f)
-		}
+		log.SetOutput(reopenLog(*logPath))
 	}
 	log.SetFlags(log.Ldate | log.Ltime)
 
