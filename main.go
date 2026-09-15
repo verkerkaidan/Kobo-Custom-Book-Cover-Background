@@ -70,6 +70,7 @@ var defaults = Config{
 	"show_library_count":  "true",
 	"show_time_spent":     "false",
 	"show_time_left":      "false",
+	"show_date":           "true",
 	"date_format":         "02 Jan 2006  15:04",
 	"poll_interval":       "15",
 	"min_regen":           "45",
@@ -750,7 +751,9 @@ func render(s Stats, cfg Config, w, h int, bgPath string) (*image.RGBA, error) {
 	if len(tail) > 0 {
 		lines = append(lines, line{"small", strings.Join(tail, "  ·  ")})
 	}
-	lines = append(lines, line{"small", time.Now().Format(cfg.str("date_format"))})
+	if cfg.bool("show_date") {
+		lines = append(lines, line{"small", time.Now().Format(cfg.str("date_format"))})
+	}
 
 	barH, barGap := 10, 22
 	showBar := cfg.bool("show_progress_bar") && s.Title != ""
