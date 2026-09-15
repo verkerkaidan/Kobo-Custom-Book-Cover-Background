@@ -997,23 +997,25 @@ func watch(cfg Config, cfgPath string) {
 	lastSig := sigOf(cfg)
 	lastRun := time.Now()
 
-	dbGone := false
+	var dbGone time.Time
 	for {
 		time.Sleep(interval)
 
 		// While the Kobo is plugged into a computer, Nickel unmounts the
-		// partition and the database vanishes. Nothing to do but wait. Say so
-		// once each way: these are the events a silent log needs explaining.
+		// partition and the database vanishes. Nothing to do but wait. The
+		// log lives on the same partition, so nothing can be said until it
+		// is back; then say how long it was away, since a USB session is the
+		// event a silent log most needs explaining.
 		if _, err := os.Stat(dbPath); err != nil {
-			if !dbGone {
-				log.Printf("database unreachable (%v) — USB mode? waiting", err)
-				dbGone = true
+			if dbGone.IsZero() {
+				dbGone = time.Now()
 			}
 			continue
 		}
-		if dbGone {
-			log.Printf("database back")
-			dbGone = false
+		if !dbGone.IsZero() {
+			log.Printf("database was unreachable for %s (USB mode?) — resuming",
+				time.Since(dbGone).Round(time.Second))
+			dbGone = time.Time{}
 		}
 		sig := sigOf(cfg)
 		if sig == lastSig || time.Since(lastRun) < minRegen {

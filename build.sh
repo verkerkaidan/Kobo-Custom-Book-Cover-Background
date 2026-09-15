@@ -111,15 +111,31 @@ rm -f "$DIR/watcher.pid"
 
 say "launching watcher"
 # $0 of the inner shell is the tag, which is how the loop above finds it.
-# stderr goes to the log too: a Go panic prints there, and KFMon's stdout is
-# nowhere anyone looks.
+#
+# The watcher's stderr goes to the log too — a Go panic prints there, and
+# KFMon's stdout is nowhere anyone looks. It is piped through a read loop
+# rather than redirected once, because a descriptor opened before a USB
+# session points at a dead mount afterwards and everything written to it
+# is lost. Appending per line reopens the file every time.
+#
+# The relaunch delay doubles on every exit, up to ten minutes, and resets
+# after a run that lasted at least an hour: a watcher that dies instantly
+# (half-copied binary, missing font) must not write to flash every 30s
+# forever.
 sh -c '
+    delay=30
     while :; do
-        "$1" -config "$2/config.ini" -log "$2/screensaver.log" -watch
-        echo "$(date "+%Y/%m/%d %H:%M:%S") supervisor: watcher exited ($?), relaunching in 30s" >> "$2/screensaver.log"
-        sleep 30
+        began=$(date +%s)
+        "$1" -config "$2/config.ini" -log "$2/screensaver.log" -watch 2>&1 \
+            | while IFS= read -r line; do
+                  echo "$(date "+%Y/%m/%d %H:%M:%S") stderr: $line" >> "$2/screensaver.log"
+              done
+        [ $(( $(date +%s) - began )) -ge 3600 ] && delay=30
+        echo "$(date "+%Y/%m/%d %H:%M:%S") supervisor: watcher exited, relaunching in ${delay}s" >> "$2/screensaver.log"
+        sleep "$delay"
+        [ "$delay" -lt 600 ] && delay=$(( delay * 2 ))
     done
-' "$TAG" "$BIN" "$DIR" </dev/null >/dev/null 2>>"$LOG" &
+' "$TAG" "$BIN" "$DIR" </dev/null >/dev/null 2>&1 &
 echo $! > "$DIR/watcher.pid"
 EOF
 chmod +x "$OUT/.adds/kobo-screensaver/start.sh"

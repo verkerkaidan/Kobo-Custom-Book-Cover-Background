@@ -565,6 +565,7 @@ Check `.kobo/version` on the USB drive: the third field is the firmware.
 If it has changed since KFMon was installed, a Wi-Fi firmware update has
 wiped KFMon from the internal filesystem, and the tile is now just a picture.
 Copy `.adds/kfmon/KoboRoot.tgz.reinstall` (a stashed copy of the KFMon
-installer) to `.kobo/KoboRoot.tgz`, eject, reboot, tap the tile. `screensaver.log` will show a `start.sh: launching watcher`
-line once it works again; `ps-at-tap.txt` next to it is a snapshot of what
+installer) to `.kobo/KoboRoot.tgz`, eject, reboot, tap the tile.
+`screensaver.log` will show a `start.sh: launching watcher` line once it
+works again; `ps-at-tap.txt` next to it is a snapshot of what
 was running when the tile was tapped, for when it doesn't.
