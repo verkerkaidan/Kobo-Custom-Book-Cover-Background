@@ -56,8 +56,13 @@ if [ -n "$to_prune" ]; then
     # just newlines, so a repo path with a space in it (a synced Drive
     # folder, say) would tear one filename into two bogus arguments and
     # rm would silently delete nothing.
+    # `|| true`: this is best-effort housekeeping, not the point of running
+    # the script. Under `set -euo pipefail`, an `rm` that fails for a reason
+    # -f doesn't swallow (permission denied, an immutable flag) would
+    # otherwise abort the whole install here, before the device is ever
+    # touched, with nothing said about why.
     printf '%s\n' "$to_prune" | while IFS= read -r f; do
-        rm -f -- "$f"
+        rm -f -- "$f" || true
     done
     echo "==> pruned to the newest $KEEP database backups"
 fi
