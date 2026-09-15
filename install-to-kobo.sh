@@ -25,6 +25,10 @@ fi
     exit 1; }
 
 echo "==> target: $KOBO"
+# A firmware update wipes KFMon from the rootfs. Nothing on the USB partition
+# reveals that directly, but the version string changing is the tell.
+[ -f "$KOBO/.kobo/version" ] && \
+    echo "    firmware $(cut -d, -f3 "$KOBO/.kobo/version")  (changed since KFMon went on? see README)"
 
 if [ ! -f "$DIST/.adds/kobo-screensaver/assets/background.png" ]; then
     echo "    WARNING: no background image staged. The sleep screen will be"

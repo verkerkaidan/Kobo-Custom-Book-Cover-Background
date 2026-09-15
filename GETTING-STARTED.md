@@ -558,3 +558,14 @@ cost of your library and reading positions.
   those threads are where breakage gets reported first.
 - Modding a Kobo is generally low-risk and widely done, but it is unsupported
   by Kobo. Your backup from step 1 is your safety net. Keep it.
+
+### The sleep screen stopped updating, and the tile does nothing
+
+Check `.kobo/version` on the USB drive: the third field is the firmware.
+If it has changed since KFMon was installed, a Wi-Fi firmware update has
+wiped KFMon from the internal filesystem, and the tile is now just a picture.
+Copy `.adds/kfmon/KoboRoot.tgz.reinstall` (a stashed copy of the KFMon
+installer) to `.kobo/KoboRoot.tgz`, eject, reboot, tap the tile.
+`screensaver.log` will show a `start.sh: launching watcher` line once it
+works again; `ps-at-tap.txt` next to it is a snapshot of what
+was running when the tile was tapped, for when it doesn't.

@@ -997,13 +997,25 @@ func watch(cfg Config, cfgPath string) {
 	lastSig := sigOf(cfg)
 	lastRun := time.Now()
 
+	var dbGone time.Time
 	for {
 		time.Sleep(interval)
 
 		// While the Kobo is plugged into a computer, Nickel unmounts the
-		// partition and the database vanishes. Nothing to do but wait.
+		// partition and the database vanishes. Nothing to do but wait. The
+		// log lives on the same partition, so nothing can be said until it
+		// is back; then say how long it was away, since a USB session is the
+		// event a silent log most needs explaining.
 		if _, err := os.Stat(dbPath); err != nil {
+			if dbGone.IsZero() {
+				dbGone = time.Now()
+			}
 			continue
+		}
+		if !dbGone.IsZero() {
+			log.Printf("database was unreachable for %s (USB mode?) — resuming",
+				time.Since(dbGone).Round(time.Second))
+			dbGone = time.Time{}
 		}
 		sig := sigOf(cfg)
 		if sig == lastSig || time.Since(lastRun) < minRegen {
@@ -1023,6 +1035,24 @@ func watch(cfg Config, cfgPath string) {
 	}
 }
 
+// A log destination that is opened, appended to and closed on every write.
+//
+// Holding the file open for the life of the process is wrong here: when the
+// Kobo goes into USB mode Nickel unmounts the partition, and once it comes
+// back the old descriptor points at a dead filesystem. Every line after
+// that — including whatever explained a later crash — would vanish, leaving
+// a log that simply stops. Writes are rare enough that reopening is free.
+type reopenLog string
+
+func (p reopenLog) Write(b []byte) (int, error) {
+	f, err := os.OpenFile(string(p), os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644)
+	if err != nil {
+		return 0, err
+	}
+	defer f.Close()
+	return f.Write(b)
+}
+
 func main() {
 	exe, _ := os.Executable()
 	defaultCfg := filepath.Join(filepath.Dir(exe), "config.ini")
@@ -1033,10 +1063,7 @@ func main() {
 	flag.Parse()
 
 	if *logPath != "" {
-		if f, err := os.OpenFile(*logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0o644); err == nil {
-			defer f.Close()
-			log.SetOutput(f)
-		}
+		log.SetOutput(reopenLog(*logPath))
 	}
 	log.SetFlags(log.Ldate | log.Ltime)
 
