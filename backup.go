@@ -86,19 +86,24 @@ func checkIntegrity(db *sql.DB) error {
 	if n == 1 && first == "ok" {
 		return nil
 	}
-	// SQLite can return a whole report as one multi-line row (hundreds of
-	// "Page N: never used" lines). This ends up in a log on flash: keep the
-	// first line only.
-	if i := strings.IndexByte(first, '\n'); i >= 0 {
-		first = first[i+1:]
-		if j := strings.IndexByte(first, '\n'); j >= 0 {
-			first = first[:j]
-		}
-	}
-	if len(first) > 160 {
-		first = first[:160] + "..."
-	}
+	first = firstProblem(first)
 	return fmt.Errorf("integrity_check failed: %s", first)
+}
+
+// SQLite can return a whole report as one multi-line row (hundreds of
+// "Page N: never used" lines), usually under a "*** in database main ***"
+// header. This ends up in a log on flash: keep one meaningful line. Only a
+// header is skipped; if the first line is the complaint itself, keep it.
+func firstProblem(msg string) string {
+	lines := strings.Split(msg, "\n")
+	pick := lines[0]
+	if strings.HasPrefix(pick, "***") && len(lines) > 1 {
+		pick = lines[1]
+	}
+	if len(pick) > 160 {
+		pick = pick[:160] + "..."
+	}
+	return pick
 }
 
 // Lists existing backups, newest first, by name (the name is the timestamp).
@@ -140,8 +145,22 @@ func backupDatabase(cfg Config, now time.Time) (string, error) {
 	dir := cfg.str("backup_dir")
 
 	if existing := listBackups(dir); len(existing) > 0 {
-		if t, ok := backupTime(existing[0], now.Location()); ok && now.Sub(t) < interval {
-			return "", nil
+		// A newest backup stamped in the FUTURE (the device clock was ahead
+		// when it was taken) has a negative age: that must not read as "recent",
+		// or no backup would be made until real time caught up.
+		if t, ok := backupTime(existing[0], now.Location()); ok {
+			if age := now.Sub(t); age >= 0 && age < interval {
+				return "", nil
+			}
+		}
+	}
+
+	// A run killed mid-VACUUM (every tile tap stops the watcher) leaves a
+	// "<name>.sqlite.tmp" that no later run would ever recognise, since each
+	// attempt uses a new timestamp. Sweep them: this process is the only writer.
+	if stale, _ := filepath.Glob(filepath.Join(dir, backupPrefix+"*"+backupSuffix+".tmp")); len(stale) > 0 {
+		for _, f := range stale {
+			os.Remove(f)
 		}
 	}
 
@@ -199,11 +218,39 @@ func backupDatabase(cfg Config, now time.Time) (string, error) {
 		return "", err
 	}
 
-	// Only now, with a good new backup safely in place, drop the oldest.
-	for i, n := range listBackups(dir) {
-		if i >= keep {
+	// Only now, with a good new backup safely in place, drop the old ones.
+	pruneBackups(dir, keep, cfg.int("backup_keep_weeks"), now.Location())
+	return dest, nil
+}
+
+// Retention: the newest `keep` backups, plus the newest backup from each of
+// the previous `weeks` calendar weeks.
+//
+// The weekly tier is not a luxury. The integrity check refuses a *damaged*
+// database, but the real incident ended with Nickel quietly rebuilding a
+// perfectly valid one that had lost the reading history; that rebuilt file
+// passes every check and is backed up like any other. With only daily copies,
+// a week later every pre-incident backup would be gone and a restore would
+// faithfully bring back the empty library. A weekly tier keeps a month of
+// history alive through exactly that.
+func pruneBackups(dir string, keep, weeks int, loc *time.Location) {
+	type week struct{ y, w int }
+	seen := map[week]bool{}
+	weeklyKept := 0
+	for i, n := range listBackups(dir) { // newest first
+		t, ok := backupTime(n, loc)
+		if !ok {
+			continue // not ours to judge: leave anything we cannot date
+		}
+		y, w := t.ISOWeek()
+		switch {
+		case i < keep:
+			seen[week{y, w}] = true // the daily tier already covers this week
+		case weeklyKept < weeks && !seen[week{y, w}]:
+			seen[week{y, w}] = true
+			weeklyKept++
+		default:
 			os.Remove(filepath.Join(dir, n))
 		}
 	}
-	return dest, nil
 }

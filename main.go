@@ -78,6 +78,7 @@ var defaults = Config{
 	"skip_unchanged":      "true",
 	"backup_interval":     "86400",
 	"backup_keep":         "7",
+	"backup_keep_weeks":   "4",
 	"backup_dir":          "/mnt/onboard/.adds/kobo-screensaver/backups",
 }
 
@@ -1059,14 +1060,15 @@ func watch(cfg Config, cfgPath string) {
 				if backupRetry < 6*time.Hour {
 					backupRetry *= 2
 				}
+				debug.FreeOSMemory()
 			case path != "":
 				log.Printf("database backed up to %s", filepath.Base(path))
+				debug.FreeOSMemory()
 				fallthrough
 			default:
 				backupRetry = 10 * time.Minute
 				nextBackup = now.Add(time.Hour) // cheap re-check: "not due" is a directory listing
 			}
-			debug.FreeOSMemory()
 		}
 
 		sig := sigOf(cfg)

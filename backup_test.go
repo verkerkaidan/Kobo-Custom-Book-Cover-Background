@@ -257,3 +257,75 @@ func TestDamageThatVacuumCopiesPastIsStillRefused(t *testing.T) {
 		t.Fatalf("no backup should exist, got %v", got)
 	}
 }
+
+// The weekly tier: with only daily copies, a library quietly rebuilt by Nickel
+// (valid, but emptied) replaces every earlier backup within a week.
+func TestWeeklyTierKeepsAMonthOfHistoryThroughADegradedLibrary(t *testing.T) {
+	db := makeDB(t, 20)
+	dir := t.TempDir()
+	cfg := testCfg(db, dir, 86400, 3)
+	cfg["backup_keep_weeks"] = "2"
+	// Daily from Mon 2026-09-07 to Sun 2026-10-11 (35 days).
+	t0 := time.Date(2026, 9, 7, 0, 0, 0, 0, time.UTC)
+	for i := 0; i < 35; i++ {
+		if _, err := backupDatabase(cfg, t0.AddDate(0, 0, i)); err != nil {
+			t.Fatal(err)
+		}
+	}
+	var got []string
+	for _, n := range listBackups(dir) {
+		got = append(got, n[len(backupPrefix):len(backupPrefix)+8])
+	}
+	// 3 newest daily; then the newest of each of the 2 previous weeks.
+	want := []string{"20261011", "20261010", "20261009", "20261004", "20260927"}
+	if fmt.Sprint(got) != fmt.Sprint(want) {
+		t.Fatalf("kept %v, want %v", got, want)
+	}
+}
+
+func TestFutureDatedBackupDoesNotBlockNewOnes(t *testing.T) {
+	db := makeDB(t, 20)
+	dir := t.TempDir()
+	cfg := testCfg(db, dir, 86400, 7)
+	now := time.Date(2026, 10, 21, 12, 0, 0, 0, time.UTC)
+
+	// A backup stamped two days ahead: the device clock was wrong when it ran.
+	if _, err := backupDatabase(cfg, now.Add(48*time.Hour)); err != nil {
+		t.Fatal(err)
+	}
+	p, err := backupDatabase(cfg, now)
+	if err != nil || p == "" {
+		t.Fatalf("a future-dated newest backup must not read as recent; got %q %v", p, err)
+	}
+}
+
+func TestStaleTempFileFromAKilledRunIsSwept(t *testing.T) {
+	db := makeDB(t, 20)
+	dir := t.TempDir()
+	stale := filepath.Join(dir, backupPrefix+"20200101-000000"+backupSuffix+".tmp")
+	if err := os.WriteFile(stale, []byte("half a vacuum"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := backupDatabase(testCfg(db, dir, 86400, 7), time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(stale); err == nil {
+		t.Fatal("stale .tmp from a killed run was left behind")
+	}
+}
+
+func TestFirstProblemKeepsTheRealComplaint(t *testing.T) {
+	cases := map[string]string{
+		"*** in database main ***\nTree 3 page 9: bad\nPage 4: never used": "Tree 3 page 9: bad",         // header skipped
+		"row 5 missing from index x\nrow 6 missing from index x":           "row 5 missing from index x", // real first line kept
+		"malformed": "malformed",
+	}
+	for in, want := range cases {
+		if got := firstProblem(in); got != want {
+			t.Errorf("firstProblem(%q) = %q, want %q", in, got, want)
+		}
+	}
+	if got := firstProblem(string(make([]byte, 500))); len(got) > 170 {
+		t.Errorf("not truncated: %d bytes", len(got))
+	}
+}
