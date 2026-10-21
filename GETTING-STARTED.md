@@ -569,3 +569,17 @@ installer) to `.kobo/KoboRoot.tgz`, eject, reboot, tap the tile.
 `screensaver.log` will show a `start.sh: launching watcher` line once it
 works again; `ps-at-tap.txt` next to it is a snapshot of what
 was running when the tile was tapped, for when it doesn't.
+
+### Her books are there but reading progress, finished flags or shelves vanished
+
+Nickel rebuilt its library database, usually after it found it damaged (a
+firmware update, an unsafe eject, an interrupted Calibre session). The books are
+files and are untouched; the history lived in `.kobo/KoboReader.sqlite`.
+
+If the watcher has been running, there are daily backups of that file:
+`./restore-db.sh` lists them and `./restore-db.sh latest` puts the newest
+healthy one back (then eject and reboot). See "Database backups" in the README.
+Before doing anything else, copy the whole drive somewhere safe.
+
+To check a database yourself: `sqlite3 KoboReader.sqlite "pragma integrity_check;"`
+should print `ok`.

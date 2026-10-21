@@ -51,8 +51,10 @@ kobo-screensaver
 # commit, because the file plain did not exist in the repo.
 .preview/
 
-# KoboReader database backups
+# KoboReader database backups (install-to-kobo.sh) and the safety copy
+# restore-db.sh makes of whatever it replaces
 KoboReader.sqlite*.backup-*
+KoboReader.sqlite.before-restore-*
 
 # Finder "copy" duplicates (e.g. "build copy.sh", "assets copy/")
 * copy

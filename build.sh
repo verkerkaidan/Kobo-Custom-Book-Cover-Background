@@ -145,9 +145,14 @@ say "launching watcher"
 # forever.
 sh -c '
     delay=30
+    # Lowest CPU priority: a render is ~5s of full-core work, and it should
+    # never compete with Nickel while she is turning pages. Skipped quietly
+    # on a busybox built without nice.
+    NICE=""
+    command -v nice >/dev/null 2>&1 && NICE="nice -n 19"
     while :; do
         began=$(date +%s)
-        "$1" -config "$2/config.ini" -log "$2/screensaver.log" -watch 2>&1 \
+        $NICE "$1" -config "$2/config.ini" -log "$2/screensaver.log" -watch 2>&1 \
             | while IFS= read -r line; do
                   echo "$(date "+%Y/%m/%d %H:%M:%S") stderr: $line" >> "$2/screensaver.log"
               done

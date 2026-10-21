@@ -52,6 +52,43 @@ once tapped. The device's own eLabel leaflet is excluded by path.
 
 Each is switchable in `config.ini`.
 
+## Database backups
+
+Nickel's library lives in one SQLite file, `KoboReader.sqlite`: reading
+progress, finished-book flags, shelves. If it is damaged (a firmware update
+once did exactly that here) Nickel rebuilds the library from the files on disk
+and all of that is gone. The books survive; the history does not.
+
+So the watcher, which already reads that file as you read, keeps a rolling set
+of backups in `.adds/kobo-screensaver/backups/`: one a day, the newest seven,
+about 6MB each, plus the newest one from each of the previous four weeks
+(`backup_interval`, `backup_keep`, `backup_keep_weeks`, `backup_dir` in
+`config.ini`; `backup_interval = 0` turns it off). The weekly tier matters: if
+Nickel quietly rebuilds a damaged library, the emptied-but-valid result is
+backed up like any other, and daily copies alone would all be replaced within a
+week.
+
+Backups are taken by the watcher, so they only happen while it is running —
+after a reboot or firmware update that means after you tap its tile again. The
+"Last updated" line on the sleep screen is the tell that it has stopped.
+
+A backup is only taken from a database that passes SQLite's `integrity_check`,
+and a failed check never touches the backups already there — so the copy from
+the day before a corruption is still there afterwards. That check is not
+redundant with the copy step: measured against the real corrupt file,
+`VACUUM INTO` alone accepted it and wrote a backup that was itself corrupt.
+`backup_test.go` pins this down.
+
+To restore, plug the Kobo in and:
+
+```bash
+./restore-db.sh              # list the backups: books, finished, healthy or not
+./restore-db.sh latest       # newest healthy one
+```
+
+Then eject and reboot. The current database is saved next to the script first
+(`KoboReader.sqlite.before-restore-*`), and a damaged backup is refused.
+
 ## Compositing order
 
 ```
