@@ -20,6 +20,7 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"runtime/debug"
 	"strconv"
 	"strings"
 	"time"
@@ -75,6 +76,9 @@ var defaults = Config{
 	"poll_interval":       "15",
 	"min_regen":           "45",
 	"skip_unchanged":      "true",
+	"backup_interval":     "86400",
+	"backup_keep":         "7",
+	"backup_dir":          "/mnt/onboard/.adds/kobo-screensaver/backups",
 }
 
 // Minimal INI reader: one flat section, key = value, # or ; comments.
@@ -214,21 +218,11 @@ func copyFile(src, dst string) error {
 func readStats(dbPath string) (Stats, error) {
 	var s Stats
 
-	tmp, err := os.MkdirTemp("", "kss-")
+	snap, cleanup, err := snapshotDB(dbPath)
 	if err != nil {
 		return s, err
 	}
-	defer os.RemoveAll(tmp)
-
-	snap := filepath.Join(tmp, "KoboReader.sqlite")
-	if err := copyFile(dbPath, snap); err != nil {
-		return s, err
-	}
-	for _, ext := range []string{"-wal", "-shm"} {
-		if _, err := os.Stat(dbPath + ext); err == nil {
-			_ = copyFile(dbPath+ext, snap+ext)
-		}
-	}
+	defer cleanup()
 
 	db, err := sql.Open("sqlite", "file:"+snap+"?_pragma=query_only(1)")
 	if err != nil {
@@ -987,6 +981,26 @@ func assetSignature(cfg Config) string {
 	return fileSig(cfg.str("background"), cfg.str("frame"))
 }
 
+// This process's resident set size in KB, from /proc/self/status; 0 where that
+// does not exist (macOS) or cannot be read.
+func residentKB() int {
+	b, err := os.ReadFile("/proc/self/status")
+	if err != nil {
+		return 0
+	}
+	for _, line := range strings.Split(string(b), "\n") {
+		if strings.HasPrefix(line, "VmRSS:") {
+			f := strings.Fields(line)
+			if len(f) >= 2 {
+				if n, err := strconv.Atoi(f[1]); err == nil {
+					return n
+				}
+			}
+		}
+	}
+	return 0
+}
+
 // Poll the database rather than run on a fixed timer: does essentially nothing
 // while you are not reading.
 func watch(cfg Config, cfgPath string) {
@@ -997,6 +1011,13 @@ func watch(cfg Config, cfgPath string) {
 	if err := generate(cfg); err != nil {
 		log.Printf("initial render failed: %v", err)
 	}
+	debug.FreeOSMemory()
+	// One line, once: how big the resident watcher is next to Nickel. Linux
+	// only (/proc); silent elsewhere. The point is to be able to read the real
+	// number off the device instead of guessing from a laptop.
+	if kb := residentKB(); kb > 0 {
+		log.Printf("resident memory after first render: %d MB", kb/1024)
+	}
 	sigOf := func(c Config) string {
 		return dbSignature(dbPath) + assetSignature(c) + fileSig(cfgPath)
 	}
@@ -1004,6 +1025,8 @@ func watch(cfg Config, cfgPath string) {
 	lastRun := time.Now()
 
 	var dbGone time.Time
+	var nextBackup time.Time // zero: due immediately, so the first one is taken at start-up
+	backupRetry := 10 * time.Minute
 	for {
 		time.Sleep(interval)
 
@@ -1023,6 +1046,29 @@ func watch(cfg Config, cfgPath string) {
 				time.Since(dbGone).Round(time.Second))
 			dbGone = time.Time{}
 		}
+
+		// Daily, integrity-checked copy of the library database (see
+		// backup.go). When the database is unfit to copy, back off rather than
+		// re-reading and re-logging every poll for as long as it stays broken.
+		if now := time.Now(); !now.Before(nextBackup) {
+			path, err := backupDatabase(cfg, now)
+			switch {
+			case err != nil:
+				log.Printf("database backup skipped: %v (retrying in %s)", err, backupRetry)
+				nextBackup = now.Add(backupRetry)
+				if backupRetry < 6*time.Hour {
+					backupRetry *= 2
+				}
+			case path != "":
+				log.Printf("database backed up to %s", filepath.Base(path))
+				fallthrough
+			default:
+				backupRetry = 10 * time.Minute
+				nextBackup = now.Add(time.Hour) // cheap re-check: "not due" is a directory listing
+			}
+			debug.FreeOSMemory()
+		}
+
 		sig := sigOf(cfg)
 		if sig == lastSig || time.Since(lastRun) < minRegen {
 			continue
@@ -1038,6 +1084,9 @@ func watch(cfg Config, cfgPath string) {
 		if err := generate(cfg); err != nil {
 			log.Printf("render failed: %v", err)
 		}
+		// A render peaks at ~70MB. Hand it back: this process stays resident
+		// beside Nickel for weeks, and Go would otherwise keep it all.
+		debug.FreeOSMemory()
 	}
 }
 
